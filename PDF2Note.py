@@ -12,10 +12,12 @@ DEFAULT_OUT_PATH = "pdf2NoteOut.pdf"
 SAVE_DIRECTORY = "save"
 MARGIN = 20
 
+GUI_IMG_SIZE_PX = 300
 USE_GUI = False
 
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, IntVar
+import PIL
 
 # adapted from stackoverflow
 class ImagesDisplay(tk.Frame):
@@ -28,18 +30,31 @@ class ImagesDisplay(tk.Frame):
         text.pack(fill="both", expand=True)
         self.image_list = []
         self.photo_list = []
+        self.checkbuttons = []
 
-        for img in images:
-            # b = tk.Button(self, text="Button #%s" % i)
-            photo = tk.PhotoImage(file=img).resize((200, 200))
-            #photo = photo.subsample(2)
+        for i, img in enumerate(images):
+            
+            width, height = img.size
+            max_dim = max(width, height)
+            min_dim = min(width, height)
+            ratio = max_dim / min_dim
+
+            dims = (GUI_IMG_SIZE_PX, )
+            if (width > height):
+                dims = (int(GUI_IMG_SIZE_PX * ratio), GUI_IMG_SIZE_PX)
+
+            photo = PIL.ImageTk.PhotoImage(image=img.copy().resize(dims))
 
             b = tk.Label(self,image=photo)
             b.image = photo
             self.image_list.append(b)
             self.photo_list.append(photo)
-            # b.pack(side='bottom',fill='x')
+            self.checkbuttons.append(IntVar(value=0))
+            cb = tk.Checkbutton(text, text=str(i+1), bg='white', anchor='w', width=50, height=50, variable=self.checkbuttons[i])
+            cb.select()
+
             text.window_create("end", window=b)
+            text.window_create("end", window=cb)
             text.insert("end", "\n")
 
         text.configure(state="disabled")
@@ -103,17 +118,39 @@ def main():
     images = convert_from_path(pdf_path, fmt="png")
 
     kept_image_ranges = []
-    if (args.indices is None):
-        kept_image_ranges.append((0, len(images)))
+    if (USE_GUI == True):
+        display = ImagesDisplay(root, images)
+        display.pack(fill="both", expand=True)
+        root.wm_deiconify()
+        root.geometry("1000x1000")
+        root.mainloop()
+        print(f"selected items: {display.checkbuttons}")
+
+        current_lower = 0
+        current_upper = 0
+        for i in range(0, len(images)):
+            if (current_lower >= len(images)):
+                break
+            elif (display.checkbuttons[i].get() == 0):
+                if (i > 0):
+                    kept_image_ranges.append((current_lower, current_upper+1))
+                current_lower = i+1
+                current_upper = current_lower
+            else:
+                current_upper = i
+        print(kept_image_ranges)
     else:
-        l1 = [index.split("-") for index in args.indices]
-        l2 = [(int(part[0])-1, int(part[1])) for part in l1]
-        if (len(l2) > 0):
-            for i in range(0, len(l2) - 1):
-                a1, b1 = l2[i]
-                a2, _ = l2[i+1]
-                assert(a1 <= b1 and b1 < a2)
-        kept_image_ranges = l2
+        if (args.indices is None):
+            kept_image_ranges.append((0, len(images)))
+        else:
+            l1 = [index.split("-") for index in args.indices]
+            l2 = [(int(part[0])-1, int(part[1])) for part in l1]
+            if (len(l2) > 0):
+                for i in range(0, len(l2) - 1):
+                    a1, b1 = l2[i]
+                    a2, _ = l2[i+1]
+                    assert(a1 <= b1 and b1 < a2)
+            kept_image_ranges = l2
     
     images_path_list = []
     for a, b in kept_image_ranges:
@@ -123,11 +160,7 @@ def main():
     
     print("finish")
 
-    if (USE_GUI == True):
-        display = ImagesDisplay(root, images_path_list).pack(fill="both", expand=True)
-        root.wm_deiconify()
-        root.geometry("1000x1000")
-        root.mainloop()
+    
 
     OFFSETX = args.margin
     OFFSETY = pdf.h / 2
