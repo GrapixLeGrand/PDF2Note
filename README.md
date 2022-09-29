@@ -14,7 +14,9 @@ This project uses pdf2image and fpdf libraries.
 
 With conda:
 
-```conda install -c conda-forge pdf2image fpdf```
+```
+conda install -c conda-forge pdf2image fpdf tk
+```
 
 With PIP:
 

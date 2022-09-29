@@ -4,12 +4,45 @@ from pdf2image import convert_from_path
 import os
 from fpdf import FPDF
 
+
 # conda install -c conda-forge pdf2image
 
 TEST_PDF = "admin.pdf"
 DEFAULT_OUT_PATH = "pdf2NoteOut.pdf"
 SAVE_DIRECTORY = "save"
 MARGIN = 20
+
+USE_GUI = False
+
+import tkinter as tk
+from tkinter import filedialog
+
+# adapted from stackoverflow
+class ImagesDisplay(tk.Frame):
+    def __init__(self, parent, images):
+        tk.Frame.__init__(self, parent)
+        text = tk.Text(self, wrap="none")
+        vsb = tk.Scrollbar(orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        text.pack(fill="both", expand=True)
+        self.image_list = []
+        self.photo_list = []
+
+        for img in images:
+            # b = tk.Button(self, text="Button #%s" % i)
+            photo = tk.PhotoImage(file=img).resize((200, 200))
+            #photo = photo.subsample(2)
+
+            b = tk.Label(self,image=photo)
+            b.image = photo
+            self.image_list.append(b)
+            self.photo_list.append(photo)
+            # b.pack(side='bottom',fill='x')
+            text.window_create("end", window=b)
+            text.insert("end", "\n")
+
+        text.configure(state="disabled")
 
 def main():
     print("Welcome to pdf maker")
@@ -19,14 +52,34 @@ def main():
     parser.add_argument("--scale", nargs='?', help="scale of each mosaique", default=100, type=int)
     parser.add_argument("--margin", nargs='?', help="margin", default=MARGIN, type=int)
     parser.add_argument("--indices", nargs='+', help="indices to take as 1-2, 4-5, ...]", type=str)
+    parser.add_argument("--gui", action='store_true', help="starts PDF2Notes in gui mode")
     args = parser.parse_args()
 
     pdf_path = args.pdf_path
-    if (args.pdf_path is None):
+    pdf_out = args.pdf_out
+
+    root = tk.Tk()
+    root.withdraw()
+
+    if (args.gui is not None):
+        USE_GUI = True   
+        currdir = os.getcwd()
+        pdf_path = filedialog.askopenfilename(parent=root, initialdir=currdir, title='Please select the input pdf file')
+        pdf_out = filedialog.askdirectory(parent=root, initialdir=currdir, title='Please select a directory for output')
+
+        infilename = os.path.basename(pdf_path)
+        infilenamenoext = os.path.splitext(infilename)[0]
+        pdf_out += f"/{infilenamenoext}-PDF2Note.pdf"
+        print(f"Using Gui:\n\tinput: {pdf_path}\n\toutput: {pdf_out}")
+
+        from PIL import ImageTk, Image
+
+    
+    if (pdf_path is None):
         print("Warining you didn't entered a path, using default " + TEST_PDF)
         pdf_path = TEST_PDF
 
-    pdf_out = args.pdf_out
+    
     if (pdf_out is None):
         print("Warining you didn't entered an output path, using default " + DEFAULT_OUT_PATH)
         pdf_out = DEFAULT_OUT_PATH
@@ -62,12 +115,20 @@ def main():
                 assert(a1 <= b1 and b1 < a2)
         kept_image_ranges = l2
     
+    images_path_list = []
     for a, b in kept_image_ranges:
         for i in range(a, b):
             images[i].save(SAVE_DIRECTORY + '/' + str(i) +'.png', 'PNG')
+            images_path_list.append(SAVE_DIRECTORY + '/' + str(i) +'.png')
     
     print("finish")
-    
+
+    if (USE_GUI == True):
+        display = ImagesDisplay(root, images_path_list).pack(fill="both", expand=True)
+        root.wm_deiconify()
+        root.geometry("1000x1000")
+        root.mainloop()
+
     OFFSETX = args.margin
     OFFSETY = pdf.h / 2
     WIDTH = args.scale
